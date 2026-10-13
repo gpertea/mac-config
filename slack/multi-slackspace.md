@@ -4,6 +4,10 @@ Configure one named MCP server per Slack workspace, then authorize each name sep
 
 The app can call tools from both connections within one local chat. No separate Slack browser tabs, exported messages, local Slack proxy, or background service are required for this method. Each connection acts with the account and permissions authorized for it.
 
+For an existing single Slack MCP connection, the manual step is duplicating its configuration under separate server names. Then run a separate OAuth login for each name. This recipe uses the actual alias names `slack_jhu` and `slack_neural` for JHU Genomics Collective and Neural Plasticity. Those names are labels, not credentials.
+
+This describes the named MCP-server method, not a universal one-account limit for every Slack app or plugin version. A Slack connection made through **Plugins/Apps** may not have a user-configured MCP entry; inspect the configuration before applying these steps.
+
 ## Prerequisites
 
 - Codex desktop app and CLI on the same local host, using the same Codex configuration directory (`~/.codex` by default).
@@ -20,20 +24,6 @@ A supplied integration can handle its application configuration automatically. T
 
 The verified setup uses a pre-registered client ID without a configured client secret. A different Slack app may require additional OAuth configuration, a secret, and registered callback URLs; follow that app's maintainer instructions.
 
-### Optional: obtaining a client when none is supplied
-
-Use this section only if an approved integration has not already supplied a working configuration. Request its public client ID and supported redirect configuration from the maintainer. A client ID identifies an application, not a user's authorization; it does not grant workspace access. Workspace membership alone does not supply an OAuth client registration.
-
-If no approved integration is available, an authorized app maintainer can prepare one:
-
-1. Create an internal Slack app for the target workspace, or use an eligible published integration. For unrelated workspaces, separate internal apps and client IDs may be needed.
-2. Obtain workspace approval for MCP access. Copy the app's **Client ID** from Slack app settings; do not confuse it with an app ID, workspace ID, client secret, or access token.
-3. Configure the required **User Token Scopes**. Public-channel listing needs `channels:read`; public message search needs `search:read.public`; public channel history needs `channels:history`. Add other scopes only for intended capabilities. A maintainer's existing integration may already define its scopes.
-4. Configure desktop OAuth and the exact callback URI used by Codex. Register the callback reported by `codex mcp add`; do not guess its path. If a provider requires a fixed listener port, configure `oauth.callback_port` consistently with its registered redirect. Retry login after registration.
-5. For a new public desktop client, review Slack's PKCE setup. Enabling PKCE is a one-way app setting according to Slack; choose it deliberately on an app intended for desktop use. An existing confidential client instead needs its maintainer's supported secret provisioning procedure.
-
-This app-registration route is provider-dependent and has not been tested from scratch. Do not assume any arbitrary Slack client ID will work. See [Slack MCP application eligibility](https://docs.slack.dev/ai/slack-mcp-server/), [Slack desktop OAuth with PKCE](https://docs.slack.dev/authentication/using-pkce/), and [Codex callback configuration](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
-
 ## 1. Inspect and preserve existing configuration
 
 Run in a local terminal:
@@ -45,7 +35,9 @@ codex mcp add --help
 codex mcp list
 ```
 
-The CLI must support `--url` and `--oauth-client-id`. If `codex` is unavailable, use the desktop app's CLI installation option if provided, or follow the official CLI installation documentation. Do not replace a working installation unnecessarily.
+Inspect `~/.codex/config.toml` locally for the existing Slack MCP entry, typically `[mcp_servers.slack]`. If `codex mcp list` shows it and the entry exists, use it as the starting configuration. A connected Slack app with no corresponding MCP entry needs the integration's supplied MCP settings before this duplication method applies.
+
+The optional CLI setup below needs `--url` and `--oauth-client-id`; duplicating existing TOML entries does not. If `codex` is unavailable, use the desktop app's CLI installation option if provided, or follow the official CLI installation documentation. Do not replace a working installation unnecessarily.
 
 Preserve the existing configuration before editing:
 
@@ -62,11 +54,33 @@ Keep this backup local: an existing configuration may contain unrelated credenti
 
 ### Existing or supplied configuration: no manual ID entry
 
-Start with a working Slack MCP entry supplied by the approved integration. In the local `config.toml`, duplicate its non-secret connection settings under two unused names, such as `slack_a` and `slack_b`. Copy its Slack URL and public OAuth client configuration, including `client_id` if present. Preserve any provider-required callback settings. Never copy authorization headers, bearer tokens, client secrets, authentication files, or another user's login state.
+Start with a working Slack MCP entry supplied by the approved integration. In the local `config.toml`, duplicate its non-secret connection settings under the names `slack_jhu` and `slack_neural`. Copy its Slack URL and public OAuth client configuration, including `client_id` if present. Preserve any provider-required callback settings. Never copy authorization headers, bearer tokens, client secrets, authentication files, or another user's login state.
 
-Keep the original entry if it is still needed. The two aliases can use the same supplied client ID when the approved application supports both workspaces. Different approved applications need their respective supplied configurations.
+Keep the original entry if it is still needed. It can also remain the first connection under its existing name, with only the second added; two new aliases are used here to match the verified configuration. Do not overwrite an existing alias with different settings.
 
-Proceed directly to section 3. This is the configuration-import method used in the verified installation.
+The two aliases use the same supplied client ID in the verified setup. Reuse the existing ID when the approved application supports both workspaces. Different approved applications need their respective supplied configurations.
+
+The relevant configuration has this shape; merge it rather than replacing the whole file:
+
+```toml
+[mcp_servers.slack_jhu]
+url = "https://mcp.slack.com/mcp"
+
+[mcp_servers.slack_jhu.oauth]
+client_id = "REUSE_EXISTING_SLACK_CLIENT_ID"
+
+[mcp_servers.slack_neural]
+url = "https://mcp.slack.com/mcp"
+
+[mcp_servers.slack_neural.oauth]
+client_id = "REUSE_EXISTING_SLACK_CLIENT_ID"
+```
+
+Both occurrences of `REUSE_EXISTING_SLACK_CLIENT_ID` mean the same valid client ID already present in the user's working Slack MCP configuration. The placeholder is not a credential and cannot authenticate. This example matches the verified configuration's names, endpoint, and fields; only the client ID is mocked. The names do not select Slack workspaces: the next section's consent flow establishes that mapping.
+
+If a supported integration manages client registration without these explicit tables, retain its configuration instead of adding mocked tables. Proceed directly to section 3 after creating the entries; no `mcp add` command is required for entries already written manually.
+
+OAuth credentials are generated locally through login. Do not copy another user's credentials, Codex authentication files, keychain entries, or browser sessions.
 
 ### Optional CLI setup when configuring the ID explicitly
 
@@ -75,56 +89,36 @@ Replace the client ID placeholders below with the approved application ID. Use d
 Run the first command and finish any OAuth flow it opens:
 
 ```sh
-codex mcp add slack_a --url https://mcp.slack.com/mcp \
-  --oauth-client-id 'REPLACE_WITH_WORKSPACE_A_APPROVED_CLIENT_ID'
+codex mcp add slack_jhu --url https://mcp.slack.com/mcp \
+  --oauth-client-id 'REUSE_EXISTING_SLACK_CLIENT_ID'
 ```
 
-In Slack's authorization page, sign in with the recipient's own account and select workspace A. If adding the server does not complete authentication, use the login commands in section 3.
+In Slack's authorization page, sign in with the recipient's own account and select JHU Genomics Collective. If adding the server does not complete authentication, use the login commands in section 3.
 
-After the first authorization succeeds, configure workspace B:
+After the first authorization succeeds, configure Neural Plasticity:
 
 ```sh
-codex mcp add slack_b --url https://mcp.slack.com/mcp \
-  --oauth-client-id 'REPLACE_WITH_WORKSPACE_B_APPROVED_CLIENT_ID'
+codex mcp add slack_neural --url https://mcp.slack.com/mcp \
+  --oauth-client-id 'REUSE_EXISTING_SLACK_CLIENT_ID'
 ```
 
-Select workspace B explicitly; the browser may initially show workspace A. If needed, complete authentication in section 3.
-
-The relevant configuration has this shape; merge it rather than replacing the whole file:
-
-```toml
-[mcp_servers.slack_a]
-url = "https://mcp.slack.com/mcp"
-
-[mcp_servers.slack_a.oauth]
-client_id = "REPLACE_WITH_WORKSPACE_A_APPROVED_CLIENT_ID"
-
-[mcp_servers.slack_b]
-url = "https://mcp.slack.com/mcp"
-
-[mcp_servers.slack_b.oauth]
-client_id = "REPLACE_WITH_WORKSPACE_B_APPROVED_CLIENT_ID"
-```
-
-These mocked `client_id` values illustrate where an integration-supplied ID belongs. They are not IDs returned by login and must not be pasted over working supplied values. If a supported integration manages client registration without these explicit tables, retain its configuration instead of adding mocked tables.
-
-OAuth credentials are generated locally through login. Do not copy another user's credentials, Codex authentication files, keychain entries, or browser sessions.
+Select Neural Plasticity explicitly; the browser may initially show JHU Genomics Collective. If needed, complete authentication in section 3.
 
 ## 3. Authorize the aliases separately
 
 For configured aliases that are not yet authenticated, run one command at a time:
 
 ```sh
-codex mcp login slack_a
+codex mcp login slack_jhu
 ```
 
-Complete workspace A's Slack consent with the user's own account. Then run:
+Complete JHU Genomics Collective's Slack consent with the user's own account. Then run:
 
 ```sh
-codex mcp login slack_b
+codex mcp login slack_neural
 ```
 
-Choose workspace B explicitly and complete consent. If `mcp add` already authenticated an alias successfully, its login need not be repeated. Login stores the resulting credentials locally; no manual token handling is required.
+Choose Neural Plasticity explicitly and complete consent. If `mcp add` already authenticated an alias successfully, its login need not be repeated. Login stores the resulting credentials locally; no manual token handling is required.
 
 ## 4. Reload and verify in the desktop app
 
@@ -132,9 +126,9 @@ Run `codex mcp list` to confirm both entries exist. Reload MCP servers in the ap
 
 Use this verification prompt:
 
-> Using slack_a and slack_b separately, list up to two public channels from each connection. Confirm the workspace mapping with a public channel unique to each workspace. Perform read-only checks.
+> Using slack_jhu and slack_neural separately, list up to two public channels from each connection. Confirm the workspace mapping with a public channel unique to each workspace. Perform read-only checks.
 
-Success requires two functioning connections with the intended workspace identities. Seeing `general` and `random` twice is insufficient to establish that the workspaces differ. Tool namespaces should distinguish the server names, such as `mcp__slack_a__...` and `mcp__slack_b__...`.
+Success requires two functioning connections with the intended workspace identities. Seeing `general` and `random` twice is insufficient to establish that the workspaces differ. Tool namespaces should distinguish the server names, such as `mcp__slack_jhu__...` and `mcp__slack_neural__...`.
 
 Then requests can target either workspace or both in the same chat. Include workspace names when channel names overlap.
 
@@ -146,7 +140,7 @@ For three or more workspaces, add a new alias and complete a separate OAuth flow
 
 ## Troubleshooting and removal
 
-- **Both connections reach one workspace:** run `codex mcp logout slack_b`, then `codex mcp login slack_b` and select the correct workspace.
+- **Both connections reach one workspace:** run `codex mcp logout slack_neural`, then `codex mcp login slack_neural` and select the correct workspace.
 - **Registration, client, or redirect error:** verify the approved client ID and callback requirements with the integration maintainer. Retry with the correct configuration; do not extract browser tokens as a workaround.
 - **Configured but absent in the app:** verify the app and terminal use the same local host and Codex configuration directory, then reload and use a new chat. Local settings do not automatically configure cloud chats or another computer.
 - **Permission or scope error:** check workspace approval and the authorized application's scopes.
@@ -154,10 +148,10 @@ For three or more workspaces, add a new alias and complete a separate OAuth flow
 To remove only the added connections:
 
 ```sh
-codex mcp logout slack_a
-codex mcp remove slack_a
-codex mcp logout slack_b
-codex mcp remove slack_b
+codex mcp logout slack_jhu
+codex mcp remove slack_jhu
+codex mcp logout slack_neural
+codex mcp remove slack_neural
 ```
 
 Reload the app afterward. Remove only aliases created for this setup.
@@ -167,6 +161,20 @@ Reload the app afterward. Remove only aliases created for this setup.
 Two configured Slack MCP connections returned public-channel listings in one local chat on 2026-10-12. Configuration was inspected on 2026-10-13; both used the same endpoint and client ID. Setup records confirmed that non-secret connection settings, including the client ID, were imported before separate OAuth logins. CLI syntax was checked against `codex-cli 0.162.0-alpha.17.2`. Fresh installation, custom app registration, and another user's authorization have not been tested.
 
 This file can be handed off independently. Repository access supplies documentation, not Slack authorization. The recipient must authorize both workspaces independently. Keep local configuration backups and generated credentials outside the repository.
+
+## Optional: obtaining a client when none is supplied
+
+Use this section only if an approved integration has not already supplied a working configuration. Request its public client ID and supported redirect configuration from the maintainer. A client ID identifies an application, not a user's authorization; it does not grant workspace access. Workspace membership alone does not supply an OAuth client registration.
+
+If no approved integration is available, an authorized app maintainer can prepare one:
+
+1. Create an internal Slack app for the target workspace, or use an eligible published integration. For unrelated workspaces, separate internal apps and client IDs may be needed.
+2. Obtain workspace approval for MCP access. Copy the app's **Client ID** from Slack app settings; do not confuse it with an app ID, workspace ID, client secret, or access token.
+3. Configure the required **User Token Scopes**. Public-channel listing needs `channels:read`; public message search needs `search:read.public`; public channel history needs `channels:history`. Add other scopes only for intended capabilities. A maintainer's existing integration may already define its scopes.
+4. Configure desktop OAuth and the exact callback URI used by Codex. Register the callback reported by `codex mcp add`; do not guess its path. If a provider requires a fixed listener port, configure `oauth.callback_port` consistently with its registered redirect. Retry login after registration.
+5. For a new public desktop client, review Slack's PKCE setup. Enabling PKCE is a one-way app setting according to Slack; choose it deliberately on an app intended for desktop use. An existing confidential client instead needs its maintainer's supported secret provisioning procedure.
+
+This app-registration route is provider-dependent and has not been tested from scratch. Do not assume any arbitrary Slack client ID will work. See [Slack MCP application eligibility](https://docs.slack.dev/ai/slack-mcp-server/), [Slack desktop OAuth with PKCE](https://docs.slack.dev/authentication/using-pkce/), and [Codex callback configuration](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
 
 ## References
 
