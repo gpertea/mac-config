@@ -1,6 +1,6 @@
 # mac-config
 
-Personal, reproducible configuration for an Apple Silicon Mac mini used as a low-friction, voice-friendly workstation.
+Reproducible configuration recipes for Apple Silicon macOS workstations.
 
 ## General preferences
 
@@ -35,5 +35,6 @@ Personal, reproducible configuration for an Apple Silicon Mac mini used as a low
 ## Recipes
 
 - [Linux-like terminal selection and global middle-click paste](clipboard/macos-terminal-linux-clipboard-recipe.md)
+- [Slack configuration recipes](slack/README.md)
 
 The terminal recipe covers iTerm2 installation and defaults, Apple Terminal color conversion, selection-to-clipboard behavior, Hammerspoon middle-click paste, verification, and rollback.

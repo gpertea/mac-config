@@ -1,0 +1,7 @@
+.DS_Store
+.codex/
+.env
+.env.*
+!.env.example
+*.secrets.*
+!*.secrets.example.*
